@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  financial-extractor:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      # AWS Configuration
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      
+      # Google Cloud Configuration
+      - PROJECT_ID=${PROJECT_ID:-price-aggregator-f9e4b}
+      - VERTEX_REGION=${VERTEX_REGION:-us-east5}
+      - SERVICE_ACCOUNT_JSON=${SERVICE_ACCOUNT_JSON}
+      
+      # Optional: Service Account Path (if using file instead of JSON)
+      # - SERVICE_ACCOUNT_PATH=/app/credentials/service-account.json
+      
+      # Temporary S3 Bucket
+      - TEMP_BUCKET=${TEMP_BUCKET:-jse-renamed-docs-copy}
+      
+      # Streamlit Configuration
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+    
+    volumes:
+      # Mount cache directory for persistence
+      - ./cache:/app/cache
+      # Optional: Mount service account file if using file-based auth
+      # - ./credentials:/app/credentials:ro
+    
+    restart: unless-stopped
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
