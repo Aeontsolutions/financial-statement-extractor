@@ -71,14 +71,83 @@ Open your browser and navigate to:
 5. **Upload to S3**: Automatically upload extracted CSV files
 6. **Update Spreadsheet**: Sync metadata with Google Sheets
 
-## Architecture
+## Architecture & Workflow
 
+### Core Components
 - **Frontend**: Streamlit web application
 - **AI Processing**: Claude Sonnet 4 via Vertex AI
 - **OCR Fallback**: AWS Textract for table extraction
 - **Storage**: AWS S3 for file storage
 - **Metadata**: Google Sheets for tracking
 - **Caching**: Local CSV cache for analysis results
+
+### Application Workflow
+
+1. **Initial Setup & Configuration**
+   - Environment validation (`check_env_file()`)
+   - AWS credentials setup (`setup_aws_credentials()`)
+   - Google Cloud credentials setup (`setup_google_credentials()`)
+   - Client initialization (`setup_clients()`) for S3, Textract, and Google services
+
+2. **Statement Type Management**
+   - Pre-defined statement aliases (`setup_statement_aliases()`)
+   - Supports Balance Sheet, Cash Flow, and Income Statements
+   - Prioritizes consolidated/group statements over standard statements
+
+3. **PDF Analysis & Statement Location**
+   - Analyzes PDFs to locate specific financial statements (`analyze_all_statements_in_pdf()`)
+   - Smart page detection with multi-page support (`find_statement_page_robust()`)
+   - Caching system to store analysis results (`setup_metadata_cache()`)
+
+4. **Data Extraction Methods**
+   - Claude AI extraction (`extract_with_claude()`)
+     - Handles multi-page statements
+     - Maintains hierarchical structure
+     - Consolidates data into standardized CSV format
+   
+   - AWS Textract extraction (`extract_with_textract()`)
+     - Table structure recognition
+     - Multi-page support
+     - CSV conversion
+
+5. **Results Processing & Storage**
+   - CSV data generation
+   - S3 upload functionality (`upload_to_s3()`)
+   - Google Sheets integration (`add_row_to_spreadsheet()`)
+
+### Key Functions Overview
+
+```python
+# Setup and Configuration
+FinancialValidationApp
+├── setup_aws_credentials()      # AWS authentication
+├── setup_google_credentials()   # Google Cloud auth
+├── setup_clients()             # Initialize service clients
+└── setup_statement_aliases()    # Define statement types
+
+# Caching System
+├── setup_metadata_cache()       # Initialize cache system
+├── check_metadata_cache()       # Check for existing results
+├── save_to_metadata_cache()     # Store analysis results
+└── clear_metadata_cache()       # Reset cache
+
+# PDF Analysis
+├── find_statement_page_robust()           # Locate statements
+├── analyze_all_statements_in_pdf()        # Full PDF analysis
+├── extract_pdf_chunk()                    # Extract specific pages
+└── find_statement_page_robust_with_cache() # Cached analysis
+
+# Data Extraction
+├── extract_with_claude()                  # AI-based extraction
+├── extract_with_textract()                # AWS Textract extraction
+├── consolidate_tables_to_csv()            # Table consolidation
+└── extract_tables_from_blocks()           # Textract parsing
+
+# Storage & Upload
+├── upload_to_s3()              # S3 upload with debugging
+├── upload_csv_to_s3()          # CSV-specific upload
+└── add_row_to_spreadsheet()    # Google Sheets integration
+```
 
 ## Development
 
@@ -140,6 +209,35 @@ docker-compose up --build -p 8502:8501
 - Use Docker secrets for production deployments
 - Regularly rotate AWS and Google Cloud credentials
 - Review S3 bucket permissions periodically
+
+## Best Practices for Integration
+
+When integrating these components into a new project:
+
+1. **Core Setup**
+   - Start with the `FinancialValidationApp` class
+   - Implement essential environment variables
+   - Set up AWS and Google Cloud credentials
+
+2. **Caching Implementation**
+   - Use the caching system for performance optimization
+   - Implement the cache file structure with required columns
+   - Maintain cache validation and cleanup
+
+3. **Extraction Method Selection**
+   - Choose between Claude AI and Textract based on needs
+   - Consider implementing both for fallback support
+   - Test accuracy with your specific document types
+
+4. **Storage Integration**
+   - Set up S3 buckets with appropriate permissions
+   - Implement the upload functions with error handling
+   - Add Google Sheets integration if metadata tracking is needed
+
+5. **Error Handling**
+   - Maintain comprehensive try-catch blocks
+   - Implement logging and debugging
+   - Add validation at each processing step
 
 ## Contributing
 
