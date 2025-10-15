@@ -4,6 +4,9 @@
 .env.production
 .env.staging
 
+# Streamlit secrets
+.streamlit/secrets.toml
+
 # Credentials and keys
 *.json
 *.pem
@@ -50,7 +53,7 @@ volumes/
 
 # Large data files
 *.pdf
-*.csv
+# *.csv
 data/
 
 # Jupyter Notebook

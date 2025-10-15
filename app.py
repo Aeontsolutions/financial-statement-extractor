@@ -562,16 +562,36 @@ Return ONLY this JSON format:
         return prompt
 
     def setup_aws_credentials(self):
-        """Setup AWS credentials from environment variables."""
-        self.aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
-        self.aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-        self.aws_region = os.getenv('AWS_REGION', 'us-east-1')
+        """Setup AWS credentials from Streamlit secrets or environment variables."""
+        # Try Streamlit secrets first, then fall back to environment variables
+        self.aws_access_key_id = (
+            st.secrets.get('AWS_ACCESS_KEY_ID') if 'AWS_ACCESS_KEY_ID' in st.secrets 
+            else os.getenv('AWS_ACCESS_KEY_ID')
+        )
+        self.aws_secret_access_key = (
+            st.secrets.get('AWS_SECRET_ACCESS_KEY') if 'AWS_SECRET_ACCESS_KEY' in st.secrets 
+            else os.getenv('AWS_SECRET_ACCESS_KEY')
+        )
+        self.aws_region = (
+            st.secrets.get('AWS_REGION') if 'AWS_REGION' in st.secrets 
+            else os.getenv('AWS_REGION', 'us-east-1')
+        )
         
     def setup_google_credentials(self):
-        """Setup Google Cloud credentials."""
-        self.project_id = os.getenv('PROJECT_ID', 'price-aggregator-f9e4b')
-        self.vertex_region = os.getenv('VERTEX_REGION', 'us-east5')
-        self.service_account_path = os.getenv('SERVICE_ACCOUNT_PATH')
+        """Setup Google Cloud credentials from Streamlit secrets or environment variables."""
+        # Try Streamlit secrets first, then fall back to environment variables
+        self.project_id = (
+            st.secrets.get('PROJECT_ID') if 'PROJECT_ID' in st.secrets 
+            else os.getenv('PROJECT_ID', 'price-aggregator-f9e4b')
+        )
+        self.vertex_region = (
+            st.secrets.get('VERTEX_REGION') if 'VERTEX_REGION' in st.secrets 
+            else os.getenv('VERTEX_REGION', 'us-east5')
+        )
+        self.service_account_path = (
+            st.secrets.get('SERVICE_ACCOUNT_PATH') if 'SERVICE_ACCOUNT_PATH' in st.secrets 
+            else os.getenv('SERVICE_ACCOUNT_PATH')
+        )
         
         # Setup Google credentials
         scopes = [
@@ -587,17 +607,22 @@ Return ONLY this JSON format:
                 )
                 st.success("Loaded credentials from service account file")
             else:
-                service_account_json = os.getenv('SERVICE_ACCOUNT_JSON')
+                # Try Streamlit secrets first, then environment variables
+                service_account_json = (
+                    st.secrets.get('SERVICE_ACCOUNT_JSON') if 'SERVICE_ACCOUNT_JSON' in st.secrets 
+                    else os.getenv('SERVICE_ACCOUNT_JSON')
+                )
                 if service_account_json:
                     service_account_info = json.loads(service_account_json)
                     self.credentials = service_account.Credentials.from_service_account_info(
                         service_account_info, scopes=scopes
                     )
-                    st.success("Loaded credentials from environment variable")
+                    source = "Streamlit secrets" if 'SERVICE_ACCOUNT_JSON' in st.secrets else "environment variable"
+                    st.success(f"Loaded credentials from {source}")
                 else:
                     st.error("No Google Cloud credentials found. Please set either:")
-                    st.error("   - SERVICE_ACCOUNT_PATH environment variable pointing to your service account JSON file")
-                    st.error("   - SERVICE_ACCOUNT_JSON environment variable with the JSON content")
+                    st.error("   - SERVICE_ACCOUNT_PATH (in secrets.toml or environment variable) pointing to your service account JSON file")
+                    st.error("   - SERVICE_ACCOUNT_JSON (in secrets.toml or environment variable) with the JSON content")
                     raise ValueError("Google Cloud credentials not configured")
         except json.JSONDecodeError:
             st.error("Invalid JSON in SERVICE_ACCOUNT_JSON environment variable")
