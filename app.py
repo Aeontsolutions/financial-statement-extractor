@@ -2014,7 +2014,7 @@ def main():
     
     st.title("Financial Statement Extraction & Upload")
     
-    check_env_file()
+    # check_env_file()
     app = get_app()
     
     # Sidebar for cache management
