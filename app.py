@@ -601,48 +601,75 @@ Return ONLY this JSON format:
         ]
         
         try:
+            # Method 1: Try to load from file path (best for local development)
             if self.service_account_path and os.path.exists(self.service_account_path):
                 self.credentials = service_account.Credentials.from_service_account_file(
                     self.service_account_path, scopes=scopes
                 )
-                st.success("Loaded credentials from service account file")
-            else:
-                # Try Streamlit secrets first, then environment variables
-                service_account_json = (
-                    st.secrets.get('SERVICE_ACCOUNT_JSON') if 'SERVICE_ACCOUNT_JSON' in st.secrets 
-                    else os.getenv('SERVICE_ACCOUNT_JSON')
-                )
-                if service_account_json:
-                    try:
-                        # Parse the JSON string
-                        service_account_info = json.loads(service_account_json)
-                        
-                        # Debug: Check if private_key exists and looks correct
-                        if 'private_key' in service_account_info:
-                            key_preview = service_account_info['private_key'][:50] if service_account_info['private_key'] else "EMPTY"
-                            st.info(f"Private key preview: {key_preview}...")
-                        
-                        self.credentials = service_account.Credentials.from_service_account_info(
-                            service_account_info, scopes=scopes
-                        )
-                        source = "Streamlit secrets" if 'SERVICE_ACCOUNT_JSON' in st.secrets else "environment variable"
-                        st.success(f"Loaded credentials from {source}")
-                    except json.JSONDecodeError as je:
-                        st.error(f"Failed to parse SERVICE_ACCOUNT_JSON as JSON: {je}")
-                        st.error("The JSON string may be malformed. Check your secrets.toml formatting.")
-                        raise
-                    except Exception as cred_error:
-                        st.error(f"Failed to create credentials from JSON: {cred_error}")
-                        st.error("The JSON may be valid but missing required fields.")
-                        raise
-                else:
-                    st.error("No Google Cloud credentials found. Please set either:")
-                    st.error("   - SERVICE_ACCOUNT_PATH (in secrets.toml or environment variable) pointing to your service account JSON file")
-                    st.error("   - SERVICE_ACCOUNT_JSON (in secrets.toml or environment variable) with the JSON content")
-                    raise ValueError("Google Cloud credentials not configured")
-        except json.JSONDecodeError:
-            st.error("Invalid JSON in SERVICE_ACCOUNT_JSON")
-            raise
+                st.success("✅ Loaded credentials from service account file")
+                return
+            
+            # Method 2: Try to load from TOML section [GOOGLE_CREDENTIALS] (best for Streamlit Cloud)
+            if 'GOOGLE_CREDENTIALS' in st.secrets:
+                st.info("📋 Found GOOGLE_CREDENTIALS section in secrets")
+                try:
+                    # Convert TOML section to dict - st.secrets sections act like dicts
+                    service_account_info = dict(st.secrets['GOOGLE_CREDENTIALS'])
+                    
+                    # Verify required fields
+                    required_fields = ['type', 'project_id', 'private_key', 'client_email', 'token_uri']
+                    missing_fields = [f for f in required_fields if f not in service_account_info]
+                    if missing_fields:
+                        st.error(f"Missing required fields in GOOGLE_CREDENTIALS: {missing_fields}")
+                        raise ValueError(f"Missing fields: {missing_fields}")
+                    
+                    self.credentials = service_account.Credentials.from_service_account_info(
+                        service_account_info, scopes=scopes
+                    )
+                    st.success("✅ Loaded credentials from GOOGLE_CREDENTIALS section")
+                    return
+                except Exception as toml_error:
+                    st.error(f"Failed to load from GOOGLE_CREDENTIALS section: {toml_error}")
+                    # Continue to try other methods
+            
+            # Method 3: Try to load from SERVICE_ACCOUNT_JSON string (fallback)
+            service_account_json = (
+                st.secrets.get('SERVICE_ACCOUNT_JSON') if 'SERVICE_ACCOUNT_JSON' in st.secrets 
+                else os.getenv('SERVICE_ACCOUNT_JSON')
+            )
+            if service_account_json:
+                st.info("📄 Found SERVICE_ACCOUNT_JSON string")
+                try:
+                    # Parse the JSON string
+                    service_account_info = json.loads(service_account_json)
+                    
+                    # Fix: Ensure private_key has actual newlines, not escaped ones
+                    if 'private_key' in service_account_info:
+                        private_key = service_account_info['private_key']
+                        # Replace literal \n with actual newlines if needed
+                        if '\\n' in private_key and '\n' not in private_key:
+                            service_account_info['private_key'] = private_key.replace('\\n', '\n')
+                    
+                    self.credentials = service_account.Credentials.from_service_account_info(
+                        service_account_info, scopes=scopes
+                    )
+                    source = "Streamlit secrets" if 'SERVICE_ACCOUNT_JSON' in st.secrets else "environment variable"
+                    st.success(f"✅ Loaded credentials from SERVICE_ACCOUNT_JSON ({source})")
+                    return
+                except json.JSONDecodeError as je:
+                    st.error(f"Failed to parse SERVICE_ACCOUNT_JSON as JSON: {je}")
+                    raise
+                except Exception as json_error:
+                    st.error(f"Failed to create credentials from SERVICE_ACCOUNT_JSON: {json_error}")
+                    raise
+            
+            # No credentials found
+            st.error("❌ No Google Cloud credentials found. Please set one of:")
+            st.error("   1. SERVICE_ACCOUNT_PATH - path to JSON file (best for local)")
+            st.error("   2. [GOOGLE_CREDENTIALS] section in secrets.toml (best for Streamlit Cloud)")
+            st.error("   3. SERVICE_ACCOUNT_JSON - JSON as string (legacy)")
+            raise ValueError("Google Cloud credentials not configured")
+            
         except Exception as e:
             st.error(f"Error setting up Google credentials: {e}")
             import traceback
