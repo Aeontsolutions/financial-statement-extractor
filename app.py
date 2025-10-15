@@ -613,22 +613,40 @@ Return ONLY this JSON format:
                     else os.getenv('SERVICE_ACCOUNT_JSON')
                 )
                 if service_account_json:
-                    service_account_info = json.loads(service_account_json)
-                    self.credentials = service_account.Credentials.from_service_account_info(
-                        service_account_info, scopes=scopes
-                    )
-                    source = "Streamlit secrets" if 'SERVICE_ACCOUNT_JSON' in st.secrets else "environment variable"
-                    st.success(f"Loaded credentials from {source}")
+                    try:
+                        # Parse the JSON string
+                        service_account_info = json.loads(service_account_json)
+                        
+                        # Debug: Check if private_key exists and looks correct
+                        if 'private_key' in service_account_info:
+                            key_preview = service_account_info['private_key'][:50] if service_account_info['private_key'] else "EMPTY"
+                            st.info(f"Private key preview: {key_preview}...")
+                        
+                        self.credentials = service_account.Credentials.from_service_account_info(
+                            service_account_info, scopes=scopes
+                        )
+                        source = "Streamlit secrets" if 'SERVICE_ACCOUNT_JSON' in st.secrets else "environment variable"
+                        st.success(f"Loaded credentials from {source}")
+                    except json.JSONDecodeError as je:
+                        st.error(f"Failed to parse SERVICE_ACCOUNT_JSON as JSON: {je}")
+                        st.error("The JSON string may be malformed. Check your secrets.toml formatting.")
+                        raise
+                    except Exception as cred_error:
+                        st.error(f"Failed to create credentials from JSON: {cred_error}")
+                        st.error("The JSON may be valid but missing required fields.")
+                        raise
                 else:
                     st.error("No Google Cloud credentials found. Please set either:")
                     st.error("   - SERVICE_ACCOUNT_PATH (in secrets.toml or environment variable) pointing to your service account JSON file")
                     st.error("   - SERVICE_ACCOUNT_JSON (in secrets.toml or environment variable) with the JSON content")
                     raise ValueError("Google Cloud credentials not configured")
         except json.JSONDecodeError:
-            st.error("Invalid JSON in SERVICE_ACCOUNT_JSON environment variable")
+            st.error("Invalid JSON in SERVICE_ACCOUNT_JSON")
             raise
         except Exception as e:
             st.error(f"Error setting up Google credentials: {e}")
+            import traceback
+            st.error(f"Traceback: {traceback.format_exc()}")
             raise
         
     def setup_clients(self):
